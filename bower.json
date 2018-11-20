@@ -1,0 +1,34 @@
+{
+  "name": "purescript-chrome-devtools",
+  "homepage": "https://github.com/SpirentOrion/purescript-chrome-devtools",
+  "authors": [
+    "David Joyner <david.joyner@spirent.com>"
+  ],
+  "description": "A native Purescript interface to Chrome DevTools",
+  "main": "",
+  "keywords": [
+    "purescript",
+    "chrome",
+    "devtools"
+  ],
+  "license": "MIT",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "purescript-aff": "^5.0.2",
+    "purescript-affjax": "^7.0.0",
+    "purescript-argonaut": "^4.0.1",
+    "purescript-effect": "^2.0.0",
+    "purescript-foreign": "^5.0.0",
+    "purescript-unordered-collections": "^1.6.0"
+  },
+  "devDependencies": {
+    "purescript-psci-support": "^4.0.0"
+  }
+}
