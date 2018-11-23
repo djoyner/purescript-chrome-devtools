@@ -27,8 +27,6 @@
     "purescript-effect": "^2.0.0",
     "purescript-foreign": "^5.0.0",
     "purescript-queue": "^7.1.3",
-    "purescript-strings": "^4.0.1",
-    "purescript-unordered-collections": "^1.6.0",
     "purescript-websocket-moderate": "^3.0.0"
   },
   "devDependencies": {

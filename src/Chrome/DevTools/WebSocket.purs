@@ -1,5 +1,6 @@
 module Chrome.DevTools.WebSocket
   ( Event(..)
+  , URL
   , WebSocket
   , close
   , mkWebSocket
@@ -9,21 +10,20 @@ module Chrome.DevTools.WebSocket
 
 import Prelude
 
-import Chrome.DevTools.HTTP (Options, Target(..))
 import Control.Parallel (parOneOf)
 import Control.Plus (empty)
-import Data.Either (Either(..), fromRight)
+import Data.Either (Either(..))
 import Data.Maybe (Maybe)
-import Data.String.Regex (regex, replace)
-import Data.String.Regex.Flags as RF
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
-import Partial.Unsafe (unsafePartial)
 import Queue.One (Queue)
 import Queue.One as Q
 import Queue.Types (READ, WRITE)
 import WebSocket as WS
+
+-- | Type alias for URL strings
+type URL = String
 
 -- | Events emitted by established WebSocket connections
 data Event = Message String
@@ -42,8 +42,8 @@ newtype WebSocket = WebSocket
   , events :: Queue (read :: READ, write :: WRITE) Event
   }
 
-mkWebSocket :: Options -> Target -> Aff (Either String WebSocket)
-mkWebSocket opts targ = do
+mkWebSocket :: URL -> Aff (Either String WebSocket)
+mkWebSocket url = do
   -- Create a couple of queues:
   --
   --   "opened" to receive capabilities on open (used here and discarded)
@@ -54,7 +54,7 @@ mkWebSocket opts targ = do
 
   -- Create the WebSocket
   let params =
-        { url: wsUrl opts targ
+        { url
         , protocols: empty
         , continue: \_ ->
           { onclose: \{ code, reason, wasClean } ->
@@ -88,11 +88,3 @@ send ( WebSocket { caps } ) = caps.send
 
 close :: WebSocket -> Effect Unit
 close ( WebSocket { caps } ) = caps.close
-
-wsUrl :: Options -> Target -> String
-wsUrl opts ( Target { webSocketDebuggerUrl } ) =
-  if opts.secure
-    then replace ws "wss:" webSocketDebuggerUrl
-    else webSocketDebuggerUrl
-  where
-    ws = unsafePartial ( fromRight ( regex "^ws:" RF.ignoreCase ) )

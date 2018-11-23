@@ -29,7 +29,6 @@ import Affjax.StatusCode (StatusCode(..))
 import Control.Plus (empty)
 import Data.Argonaut (class DecodeJson, Json, decodeJson, (.?), (.??), (.?=))
 import Data.Either (Either(..), either)
-import Data.HashMap as HM
 import Data.Maybe (Maybe(..))
 import Effect.Aff (Aff, catchError)
 import Effect.Exception (Error)
@@ -118,7 +117,7 @@ derive newtype instance showVersion :: Show Version
 -- | DevTools protocol information
 newtype Protocol = Protocol
   { version :: ProtocolVersion
-  , domains :: HM.HashMap String Domain
+  , domains :: Array Domain
   }
 
 instance decodeProtocol :: DecodeJson Protocol where
@@ -128,7 +127,7 @@ instance decodeProtocol :: DecodeJson Protocol where
     domains <- obj .? "domains"
     pure $ Protocol
       { version: _version
-      , domains: HM.fromArrayBy ( \( Domain r ) -> r.domain ) identity domains
+      , domains
       }
 
 derive newtype instance showProtocol :: Show Protocol
@@ -155,9 +154,9 @@ newtype Domain = Domain
   , description :: String
   , deprecated :: Boolean
   , dependencies :: Array String
-  , types :: HM.HashMap String DomainType
-  , commands :: HM.HashMap String DomainCommand
-  , events :: HM.HashMap String DomainEvent
+  , types :: Array DomainType
+  , commands :: Array DomainCommand
+  , events :: Array DomainEvent
   }
 
 instance decodeDomain :: DecodeJson Domain where
@@ -175,9 +174,9 @@ instance decodeDomain :: DecodeJson Domain where
       , description
       , deprecated
       , dependencies
-      , types: HM.fromArrayBy ( \( DomainType r ) -> r.id ) identity types
-      , commands: HM.fromArrayBy ( \( DomainCommand r ) -> r.name ) identity commands
-      , events: HM.fromArrayBy ( \( DomainEvent r ) -> r.name ) identity events
+      , types
+      , commands
+      , events
       }
 
 derive newtype instance showDomain :: Show Domain
