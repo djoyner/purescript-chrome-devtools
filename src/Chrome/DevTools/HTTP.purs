@@ -1,3 +1,5 @@
+-- | This module defines data types and functions for invoking the browser's
+-- | HTTP DevTools endpoints.
 module Chrome.DevTools.HTTP (
     Domain(..)
   , DomainCommand(..)
@@ -34,7 +36,7 @@ import Effect.Aff (Aff, catchError)
 import Effect.Exception (Error)
 import Foreign (Foreign, ForeignError)
 
--- | Browser connection options
+-- | Browser connection options.
 type Options =
   { host :: String
   , port :: Int
@@ -48,7 +50,7 @@ defaultOptions =
   , secure: false
   }
 
--- | A target (page, iframe, etc.) running in the browser
+-- | A target (page, iframe, etc.) running in the browser.
 newtype Target = Target
   { id :: String
   , parentId :: Maybe String
@@ -84,7 +86,7 @@ instance decodeTarget :: DecodeJson Target where
 
 derive newtype instance showTarget :: Show Target
 
--- | Browser version information
+-- | Browser version metadata.
 newtype Version = Version
   { browser :: String
   , protocolVersion :: String
@@ -114,7 +116,7 @@ instance decodeVersion :: DecodeJson Version where
 
 derive newtype instance showVersion :: Show Version
 
--- | DevTools protocol information
+-- | DevTools protocol description.
 newtype Protocol = Protocol
   { version :: ProtocolVersion
   , domains :: Array Domain
@@ -315,8 +317,7 @@ instance decodeDomainParameter :: DecodeJson DomainParameter where
 derive newtype instance showDomainParameter :: Show DomainParameter
 
 newtype DomainItems = DomainItems
-  {
-    "type" :: Maybe String
+  { "type" :: Maybe String
   , "$ref" :: Maybe String
   }
 
@@ -332,7 +333,7 @@ instance decodeDomainItems :: DecodeJson DomainItems where
 
 derive newtype instance showDomainItems :: Show DomainItems
 
--- | The type of HTTP errors
+-- | The type of HTTP errors.
 data HTTPError = CaughtException Error
                | ResponseStatusError StatusCode String
                | ResponseFormatError ForeignError Foreign
@@ -347,36 +348,42 @@ instance showHTTPError :: Show HTTPError where
   show ( ResponseDecodeError err ) =
     "ResponseDecodeError " <> err
 
+-- | Get a list of all available targets.
 list :: Options -> Aff ( Either HTTPError ( Array Target ) )
 list opts = do
   let url = ( baseUrl opts ) <> "/json/list"
   resp <- tryRequest ( get RF.json url )
   pure ( resp >>= decodeResponse )
 
+-- | Open a new tab. Returns new target information.
 new :: Options -> Aff ( Either HTTPError Target )
 new opts = do
   let url = ( baseUrl opts ) <> "/json/new"
   resp <- handleResponse <$> get RF.json url
   pure ( resp >>= decodeResponse )
 
+-- | Brings a tab into the foreground.
 activate :: Options -> Target -> Aff ( Maybe HTTPError )
 activate opts ( Target { id } ) = do
   let url = ( baseUrl opts ) <> "/json/activate/" <> id
   resp <- handleResponse <$> get RF.ignore url
   pure ( either Just ( const Nothing ) resp )
 
+-- | Closes a tab.
 close :: Options -> Target -> Aff ( Maybe HTTPError )
 close opts ( Target { id } ) = do
   let url = ( baseUrl opts ) <> "/json/close/" <> id
   resp <- handleResponse <$> get RF.ignore url
   pure ( either Just ( const Nothing ) resp )
 
+-- | Get browser version metadata.
 version :: Options -> Aff ( Either HTTPError Version )
 version opts = do
   let url = ( baseUrl opts ) <> "/json/version"
   resp <- handleResponse <$> get RF.json url
   pure ( resp >>= decodeResponse )
 
+-- | Get the current DevTools protocol.
 protocol :: Options -> Aff ( Either HTTPError Protocol )
 protocol opts = do
   let url = ( baseUrl opts ) <> "/json/protocol"

@@ -1,7 +1,10 @@
+-- | This module defines data types and functions for connecting to WebSocket
+-- | endpoints. It hides details of message queuing and exposes simple `send`
+-- | and `recv` functions.
 module Chrome.DevTools.WebSocket
-  ( Event(..)
-  , URL
+  ( URL
   , WebSocket
+  , WebSocketEvent(..)
   , close
   , mkWebSocket
   , recv
@@ -17,74 +20,118 @@ import Data.Maybe (Maybe)
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
+import Effect.Exception (Error, error)
+import Effect.Ref (Ref)
+import Effect.Ref (new, read, write) as Ref
 import Queue.One (Queue)
-import Queue.One as Q
+import Queue.One (draw, new, put) as Queue
 import Queue.Types (READ, WRITE)
-import WebSocket as WS
+import WebSocket (Capabilities, newWebSocket)
 
--- | Type alias for URL strings
+-- | Type alias for URL strings.
 type URL = String
 
--- | Events emitted by established WebSocket connections
-data Event = Message String
-           | Closed Int ( Maybe String ) Boolean
-           | Error String
+-- | Events emitted by established WebSocket connections.
+data WebSocketEvent = Message String
+                    | ConnectionClosed Int ( Maybe String ) Boolean
+                    | ConnectionError Error
 
-instance showEvent :: Show Event where
-  show ( Message msg ) = "Message " <> msg
-  show ( Closed code reason wasClean ) =
-    "Closed " <> show code <> " " <> show reason <> " " <> show wasClean
-  show ( Error err ) = "Error " <> err
+instance showWebSocketEvent :: Show WebSocketEvent where
+  show ( Message msg ) =
+    "Message " <> msg
+  show ( ConnectionClosed code reason wasClean ) =
+    "ConnectionClosed " <> show code <> " " <> show reason <> " " <> show wasClean
+  show ( ConnectionError err ) =
+    "ConnectionError " <> show err
 
--- | An established WebSocket connection
+-- | A WebSocket connection.
 newtype WebSocket = WebSocket
-  { caps :: WS.Capabilities Effect
-  , events :: Queue (read :: READ, write :: WRITE) Event
+  { caps :: Capabilities Effect
+  , events :: Queue (read :: READ, write :: WRITE) WebSocketEvent
+  , closed :: Ref Boolean
   }
 
-mkWebSocket :: URL -> Aff (Either String WebSocket)
+-- | Establish a new WebSocket connection.
+mkWebSocket :: URL -> Aff (Either Error WebSocket)
 mkWebSocket url = do
   -- Create a couple of queues:
   --
   --   "opened" to receive capabilities on open (used here and discarded)
   --   "events" to receive events (used throughout the life of the connection)
   --
-  opened <- liftEffect Q.new
-  events <- liftEffect Q.new
+  opened <- liftEffect Queue.new
+  events <- liftEffect Queue.new
+
+  -- Create a ref to hold WebSocket state
+  closed <- liftEffect ( Ref.new false )
 
   -- Create the WebSocket
   let params =
         { url
         , protocols: empty
         , continue: \_ ->
-          { onclose: \{ code, reason, wasClean } ->
-             Q.put events ( Closed code reason wasClean )
-          , onerror: \err -> Q.put events ( Error err )
-          , onmessage: \_ msg -> Q.put events ( Message msg )
-          , onopen: \caps -> Q.put opened caps
+          { onclose: onClose events closed
+          , onerror: onError events closed
+          , onmessage: onMessage events
+          , onopen: Queue.put opened
           }
         }
-  liftEffect ( WS.newWebSocket params )
+  liftEffect ( newWebSocket params )
 
   -- Wait for the WS connection to open, or for an event (indicating an error)
   one <- parOneOf
-    [ Right <$> Q.draw opened
-    , Left <$> Q.draw events
+    [ Right <$> Queue.draw opened
+    , Left <$> Queue.draw events
     ]
 
-  pure $ case one of
-    Right caps -> Right ( WebSocket { caps, events } )
+  case one of
+    Right caps -> do
+      pure ( Right ( WebSocket { caps, events, closed } ) )
     Left ( Message msg ) ->
-      Left ( "unexpected message during connection: " <> msg )
-    Left ( Closed code reason _ ) ->
-      Left ( "connection closed: " <> show code <> " " <> show reason )
-    Left ( Error err ) -> Left err
+      pure ( Left ( error ( "unexpected message during connection: " <> msg ) ) )
+    Left ( ConnectionClosed code reason _ ) ->
+      pure ( Left ( error ( "connection closed: " <> show code <> " " <> show reason ) ) )
+    Left ( ConnectionError err ) ->
+      pure ( Left err )
 
-recv :: WebSocket -> Aff Event
-recv ( WebSocket { events } ) = Q.draw events
+-- | Receive an event from a WebSocket connection. Note that once a connection
+-- | is closed, then no further events can be received.
+recv :: WebSocket -> Aff WebSocketEvent
+recv ( WebSocket { events } ) = Queue.draw events
 
+-- | Send a message on a WebSocket connection. Note that once a connection is
+-- | closed, then no further messages can be sent.
 send :: WebSocket -> String -> Effect Unit
-send ( WebSocket { caps } ) = caps.send
+send ( WebSocket { caps, closed } ) msg = do
+  val <- Ref.read closed
+  unless val ( caps.send msg )
 
+-- | Close a WebSocket connection.
 close :: WebSocket -> Effect Unit
 close ( WebSocket { caps } ) = caps.close
+
+onClose :: forall r
+         . Queue (write :: WRITE | r) WebSocketEvent
+        -> Ref Boolean
+        -> { code :: Int, reason :: Maybe String, wasClean :: Boolean }
+        -> Effect Unit
+onClose events closed { code, reason, wasClean } = do
+  Ref.write true closed
+  Queue.put events ( ConnectionClosed code reason wasClean )
+
+onError :: forall r
+         . Queue (write :: WRITE | r) WebSocketEvent
+        -> Ref Boolean
+        -> Error
+        -> Effect Unit
+onError events closed err = do
+  Ref.write true closed
+  Queue.put events ( ConnectionError err )
+
+onMessage :: forall r
+           . Queue (write :: WRITE | r) WebSocketEvent
+          -> Capabilities Effect
+          -> String
+          -> Effect Unit
+onMessage  events _ msg = do
+  Queue.put events ( Message msg )
