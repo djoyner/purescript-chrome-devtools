@@ -1,11 +1,11 @@
 -- | This module defines data types and functions for connecting to Chrome
 -- | DevTools.
 module Chrome.DevTools
-  ( Command(..)
+  ( module Chrome.DevTools.HTTP.Exports
+  , Command(..)
   , CommandError(..)
   , DevTools
   , Handler
-  , URL
   , execute
   , execute_
   , mkDevTools
@@ -15,6 +15,8 @@ module Chrome.DevTools
 
 import Prelude
 
+import Chrome.DevTools.HTTP (URL)
+import Chrome.DevTools.HTTP (Domain(..), DomainCommand(..), DomainEvent(..), DomainItems(..), DomainParameter(..), DomainProperty(..), DomainType(..), HTTPError(..), Options, Protocol(..), ProtocolVersion(..), Target(..), URL, Version(..), activate, close, defaultOptions, list, new, protocol, version) as Chrome.DevTools.HTTP.Exports
 import Chrome.DevTools.WebSocket (WebSocket)
 import Chrome.DevTools.WebSocket (WebSocketEvent(..), close, mkWebSocket, recv, send) as WebSocket
 import Control.Monad.Except.Trans (ExceptT(..), runExceptT)
@@ -33,9 +35,6 @@ import Effect.Class (liftEffect)
 import Effect.Exception (Error)
 import Effect.Ref (Ref)
 import Effect.Ref (modify, modify_, new, read) as Ref
-
--- | Type alias for URL strings.
-type URL = String
 
 -- | A command to be executed in a DevTools domain. Note that `method` is the
 -- | domain-qualified method name, e.g. `Console.enable`.

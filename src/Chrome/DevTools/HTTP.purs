@@ -1,7 +1,8 @@
 -- | This module defines data types and functions for invoking the browser's
 -- | HTTP DevTools endpoints.
 module Chrome.DevTools.HTTP (
-    Domain(..)
+    module Affjax.Exports
+  , Domain(..)
   , DomainCommand(..)
   , DomainEvent(..)
   , DomainItems(..)
@@ -26,12 +27,13 @@ module Chrome.DevTools.HTTP (
 import Prelude
 
 import Affjax (Response, URL, get)
+import Affjax (URL) as Affjax.Exports
 import Affjax.ResponseFormat as RF
 import Affjax.StatusCode (StatusCode(..))
 import Control.Plus (empty)
 import Data.Argonaut (class DecodeJson, Json, decodeJson, (.?), (.??), (.?=))
 import Data.Either (Either(..), either)
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), maybe)
 import Effect.Aff (Aff, catchError)
 import Effect.Exception (Error)
 import Foreign (Foreign, ForeignError)
@@ -356,9 +358,9 @@ list opts = do
   pure ( resp >>= decodeResponse )
 
 -- | Open a new tab. Returns new target information.
-new :: Options -> Aff ( Either HTTPError Target )
-new opts = do
-  let url = ( baseUrl opts ) <> "/json/new"
+new :: Options -> Maybe URL -> Aff ( Either HTTPError Target )
+new opts nav = do
+  let url = ( baseUrl opts ) <> "/json/new" <> maybe "" ("?" <> _) nav
   resp <- handleResponse <$> get RF.json url
   pure ( resp >>= decodeResponse )
 
