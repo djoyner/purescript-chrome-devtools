@@ -83,6 +83,7 @@ instance encodeRequest :: EncodeJson Request where
     ( "id" := r.id
     ~> "method" := r.method
     ~> "params" := r.params
+    ~> jsonEmptyObject
     )
 
 newtype Response = Response
